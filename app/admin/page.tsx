@@ -20,6 +20,7 @@ export default function Admin() {
   const [novoNome, setNovoNome] = useState("");
   const [criando, setCriando] = useState(false);
   const [copiado, setCopiado] = useState<string | null>(null);
+  const [apagando, setApagando] = useState<string | null>(null);
 
   async function carregar() {
     const r = await fetch("/api/projetos");
@@ -76,6 +77,23 @@ export default function Admin() {
     await navigator.clipboard.writeText(linkCliente(token));
     setCopiado(token);
     setTimeout(() => setCopiado(null), 2000);
+  }
+
+  async function apagar(p: Projeto) {
+    if (
+      !confirm(
+        `Apagar o projeto "${p.nome}"?\n\nIsto remove DE VEZ todas as fotos deste projeto do servidor e libera o espaço. Não dá para desfazer.\n\nSó faça isto depois de já ter baixado o ZIP final.`
+      )
+    )
+      return;
+    setApagando(p.id);
+    const r = await fetch(`/api/projetos/${p.id}`, { method: "DELETE" });
+    setApagando(null);
+    if (r.ok) {
+      setProjetos((lista) => lista.filter((x) => x.id !== p.id));
+    } else {
+      alert("Não consegui apagar agora. Tente novamente em instantes.");
+    }
   }
 
   if (autenticado === null) {
@@ -196,6 +214,14 @@ export default function Admin() {
                   >
                     Abrir
                   </Link>
+                  <button
+                    onClick={() => apagar(p)}
+                    disabled={apagando === p.id}
+                    title="Apagar projeto e liberar espaço"
+                    className="rounded border border-red-200 px-2.5 py-1 text-xs text-red-600 transition hover:bg-red-50 disabled:opacity-60"
+                  >
+                    {apagando === p.id ? "Apagando…" : "Apagar"}
+                  </button>
                 </div>
               </div>
             </li>

@@ -38,7 +38,12 @@ export async function DELETE(
     .from("fotos")
     .select("storage_path")
     .eq("projeto_id", id);
-  const paths = (fotos ?? []).map((f) => f.storage_path);
+  // Remove a original E a miniatura (".thumb.jpg") de cada foto, senão
+  // as miniaturas ficam órfãs ocupando espaço no storage.
+  const paths = (fotos ?? []).flatMap((f) => [
+    f.storage_path,
+    `${f.storage_path}.thumb.jpg`,
+  ]);
   if (paths.length > 0) {
     await supabaseAdmin.storage.from(BUCKET).remove(paths);
   }

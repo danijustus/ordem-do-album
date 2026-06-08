@@ -26,7 +26,9 @@ export async function DELETE(
   if (!foto) {
     return NextResponse.json({ erro: "Foto não encontrada" }, { status: 404 });
   }
-  await supabaseAdmin.storage.from(BUCKET).remove([foto.storage_path]);
+  await supabaseAdmin.storage
+    .from(BUCKET)
+    .remove([foto.storage_path, `${foto.storage_path}.thumb.jpg`]);
   await supabaseAdmin.from("fotos").delete().eq("id", foto.id);
   return NextResponse.json({ ok: true });
 }
