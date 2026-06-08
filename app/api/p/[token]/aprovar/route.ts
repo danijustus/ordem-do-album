@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { getProjetoByToken } from "@/lib/projeto";
 import { supabaseAdmin } from "@/lib/supabase";
-import { notificarAprovacao } from "@/lib/email";
+import { notificarAprovacao, confirmarParaCliente } from "@/lib/email";
+
+function emailValido(v: unknown): v is string {
+  return typeof v === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
+}
 
 export async function POST(
   req: Request,
@@ -17,7 +21,10 @@ export async function POST(
   }
 
   // Garante que a ordem final seja salva junto da aprovação.
-  const { ordem } = await req.json().catch(() => ({ ordem: [] }));
+  const { ordem, email } = await req
+    .json()
+    .catch(() => ({ ordem: [], email: "" }));
+  const clienteEmail = emailValido(email) ? String(email).trim() : null;
   if (Array.isArray(ordem) && ordem.length > 0) {
     await Promise.all(
       ordem.map((fotoId: string, indice: number) =>
@@ -35,8 +42,18 @@ export async function POST(
     .update({ status: "aprovado", aprovado_em: new Date().toISOString() })
     .eq("id", projeto.id);
 
-  // Aviso por e-mail (melhor esforço — não bloqueia se falhar).
-  await notificarAprovacao({ projetoNome: projeto.nome, projetoId: projeto.id });
+  // Avisos por e-mail (melhor esforço — não bloqueiam se falharem).
+  await notificarAprovacao({
+    projetoNome: projeto.nome,
+    projetoId: projeto.id,
+    clienteEmail,
+  });
+  if (clienteEmail) {
+    await confirmarParaCliente({
+      email: clienteEmail,
+      projetoNome: projeto.nome,
+    });
+  }
 
   return NextResponse.json({ ok: true });
 }

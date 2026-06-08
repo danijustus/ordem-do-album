@@ -35,9 +35,11 @@ export default function PaginaCliente({
   const [salvando, setSalvando] = useState(false);
   const [salvo, setSalvo] = useState(false);
   const [confirmando, setConfirmando] = useState(false);
+  const [emailCliente, setEmailCliente] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   const aprovado = projeto?.status === "aprovado";
+  const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailCliente.trim());
 
   async function carregar() {
     const r = await fetch(`/api/p/${token}`);
@@ -140,12 +142,16 @@ export default function PaginaCliente({
   }
 
   async function aprovar() {
+    if (!emailOk) return;
     setConfirmando(false);
     setSalvando(true);
     const r = await fetch(`/api/p/${token}/aprovar`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ordem: itens.map((i) => i.id) }),
+      body: JSON.stringify({
+        ordem: itens.map((i) => i.id),
+        email: emailCliente.trim(),
+      }),
     });
     setSalvando(false);
     if (r.ok) {
@@ -287,6 +293,28 @@ export default function PaginaCliente({
               Depois de aprovar, a ordem fica salva e não poderá mais ser
               alterada.
             </p>
+            <div className="mt-4">
+              <label
+                htmlFor="email-cliente"
+                className="mb-1 block text-sm font-medium text-foreground"
+              >
+                Seu e-mail
+              </label>
+              <input
+                id="email-cliente"
+                type="email"
+                inputMode="email"
+                autoComplete="email"
+                value={emailCliente}
+                onChange={(e) => setEmailCliente(e.target.value)}
+                placeholder="voce@exemplo.com"
+                className="w-full rounded border border-border px-3 py-2 text-sm focus:border-rosa focus:outline-none"
+                autoFocus
+              />
+              <p className="mt-1 text-xs text-neutral-500">
+                Enviaremos a confirmação e os próximos passos para este e-mail.
+              </p>
+            </div>
             <div className="mt-6 flex items-center justify-end gap-3">
               <button
                 onClick={() => setConfirmando(false)}
@@ -297,7 +325,7 @@ export default function PaginaCliente({
               </button>
               <button
                 onClick={aprovar}
-                disabled={salvando}
+                disabled={salvando || !emailOk}
                 className="rounded bg-rosa px-5 py-2 text-sm font-medium text-white transition hover:bg-rosa-escuro disabled:opacity-60"
               >
                 {salvando ? "Aprovando…" : "Sim, aprovar"}
