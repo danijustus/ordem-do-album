@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -15,7 +15,6 @@ import {
 } from "@dnd-kit/core";
 import {
   SortableContext,
-  arrayMove,
   rectSortingStrategy,
   useSortable,
   sortableKeyboardCoordinates,
@@ -28,16 +27,30 @@ export type Item = {
   nome: string;
 };
 
+// A miniatura é o arquivo original + ".thumb.jpg" (ver lib/storage.ts).
+// Para ampliar, voltamos para o arquivo original em resolução cheia.
+function urlOriginal(urlThumb: string): string {
+  return urlThumb.endsWith(".thumb.jpg")
+    ? urlThumb.slice(0, -".thumb.jpg".length)
+    : urlThumb;
+}
+
 function Card({
   item,
   posicao,
   onRemover,
   arrastavel,
+  selecionado,
+  onAlternarSelecao,
+  onAmpliar,
 }: {
   item: Item;
   posicao: number;
   onRemover?: (id: string) => void;
   arrastavel: boolean;
+  selecionado: boolean;
+  onAlternarSelecao?: (id: string) => void;
+  onAmpliar: (item: Item) => void;
 }) {
   const {
     attributes,
@@ -59,9 +72,10 @@ function Card({
       ref={setNodeRef}
       style={style}
       {...(arrastavel ? { ...attributes, ...listeners } : {})}
-      className={`relative rounded-lg overflow-hidden border border-neutral-200 bg-white shadow-sm touch-none select-none ${
+      onClick={() => onAmpliar(item)}
+      className={`relative rounded-lg overflow-hidden border bg-white shadow-sm touch-none select-none ${
         arrastavel ? "cursor-grab active:cursor-grabbing" : ""
-      }`}
+      } ${selecionado ? "border-rosa ring-2 ring-rosa" : "border-neutral-200"}`}
     >
       <span className="absolute top-1 left-1 z-10 rounded bg-rosa px-1.5 py-0.5 text-xs font-semibold text-white">
         {posicao}
@@ -69,13 +83,35 @@ function Card({
       {onRemover && (
         <button
           type="button"
-          // Evita que o clique de remover inicie um arraste.
+          // Evita que o clique de remover inicie um arraste ou amplie a foto.
           onPointerDown={(e) => e.stopPropagation()}
-          onClick={() => onRemover(item.id)}
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemover(item.id);
+          }}
           className="absolute top-1 right-1 z-10 rounded-md bg-red-600/90 px-1.5 py-0.5 text-xs font-semibold text-white hover:bg-red-700"
           aria-label="Remover foto"
         >
           ✕
+        </button>
+      )}
+      {arrastavel && onAlternarSelecao && (
+        <button
+          type="button"
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            onAlternarSelecao(item.id);
+          }}
+          aria-label={selecionado ? "Remover da seleção" : "Selecionar foto"}
+          aria-pressed={selecionado}
+          className={`absolute bottom-1 left-1 z-10 flex h-6 w-6 items-center justify-center rounded-full border-2 text-xs font-bold shadow-sm transition ${
+            selecionado
+              ? "border-rosa bg-rosa text-white"
+              : "border-white bg-black/30 text-transparent hover:bg-black/50"
+          }`}
+        >
+          ✓
         </button>
       )}
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -108,7 +144,31 @@ export default function SortableGrid({
   onRemover?: (id: string) => void;
 }) {
   const [ativo, setAtivo] = useState<Item | null>(null);
+  const [grupoArrasto, setGrupoArrasto] = useState<Item[]>([]);
+  const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
+  const [ampliada, setAmpliada] = useState<Item | null>(null);
+  // Sinaliza se o gesto atual foi um arraste, para o clique que o navegador
+  // dispara logo em seguida não abrir a foto ampliada sem querer.
+  const houveArrastoRef = useRef(false);
   const arrastavel = !!onReordenar;
+
+  // Mantém a seleção coerente se alguma foto selecionada for removida.
+  useEffect(() => {
+    setSelecionados((prev) => {
+      const idsAtuais = new Set(itens.map((i) => i.id));
+      const filtrado = new Set([...prev].filter((id) => idsAtuais.has(id)));
+      return filtrado.size === prev.size ? prev : filtrado;
+    });
+  }, [itens]);
+
+  useEffect(() => {
+    if (!ampliada) return;
+    function aoTeclar(e: KeyboardEvent) {
+      if (e.key === "Escape") setAmpliada(null);
+    }
+    window.addEventListener("keydown", aoTeclar);
+    return () => window.removeEventListener("keydown", aoTeclar);
+  }, [ampliada]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -118,61 +178,169 @@ export default function SortableGrid({
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
+  function alternarSelecao(id: string) {
+    setSelecionados((prev) => {
+      const novo = new Set(prev);
+      if (novo.has(id)) novo.delete(id);
+      else novo.add(id);
+      return novo;
+    });
+  }
+
+  function aoClicarFoto(item: Item) {
+    if (houveArrastoRef.current) return;
+    setAmpliada(item);
+  }
+
   function handleDragStart(event: DragStartEvent) {
-    setAtivo(itens.find((i) => i.id === event.active.id) ?? null);
+    houveArrastoRef.current = true;
+    const item = itens.find((i) => i.id === event.active.id) ?? null;
+    setAtivo(item);
+    if (item && selecionados.has(item.id) && selecionados.size > 1) {
+      setGrupoArrasto(itens.filter((i) => selecionados.has(i.id)));
+    } else {
+      setGrupoArrasto(item ? [item] : []);
+    }
   }
 
   function handleDragEnd(event: DragEndEvent) {
     setAtivo(null);
+    setTimeout(() => {
+      houveArrastoRef.current = false;
+    }, 0);
+
     const { active, over } = event;
-    if (!over || active.id === over.id || !onReordenar) return;
-    const oldIndex = itens.findIndex((i) => i.id === active.id);
-    const newIndex = itens.findIndex((i) => i.id === over.id);
-    if (oldIndex < 0 || newIndex < 0) return;
-    onReordenar(arrayMove(itens, oldIndex, newIndex));
+    if (!over || !onReordenar) return;
+
+    const activeId = String(active.id);
+    const overId = String(over.id);
+
+    // Se a foto arrastada faz parte da seleção múltipla, move o grupo
+    // inteiro junto, mantendo a ordem relativa entre elas.
+    const grupo =
+      selecionados.has(activeId) && selecionados.size > 1
+        ? itens.filter((i) => selecionados.has(i.id))
+        : itens.filter((i) => i.id === activeId);
+    if (grupo.length === 0) return;
+
+    const idsGrupo = new Set(grupo.map((i) => i.id));
+    if (idsGrupo.has(overId)) return;
+
+    const resto = itens.filter((i) => !idsGrupo.has(i.id));
+    const indiceAlvo = resto.findIndex((i) => i.id === overId);
+    if (indiceAlvo < 0) return;
+
+    onReordenar([
+      ...resto.slice(0, indiceAlvo),
+      ...grupo,
+      ...resto.slice(indiceAlvo),
+    ]);
+  }
+
+  function handleDragCancel() {
+    setAtivo(null);
+    setTimeout(() => {
+      houveArrastoRef.current = false;
+    }, 0);
   }
 
   const grid =
     "grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5";
 
   return (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={closestCenter}
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
-      onDragCancel={() => setAtivo(null)}
-    >
-      <SortableContext
-        items={itens.map((i) => i.id)}
-        strategy={rectSortingStrategy}
-      >
-        <div className={grid}>
-          {itens.map((item, i) => (
-            <Card
-              key={item.id}
-              item={item}
-              posicao={i + 1}
-              onRemover={onRemover}
-              arrastavel={arrastavel}
-            />
-          ))}
+    <div>
+      {arrastavel && selecionados.size > 0 && (
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-rosa/40 bg-rosa/10 px-3 py-2 text-sm">
+          <span className="font-medium text-rosa-escuro">
+            {selecionados.size} foto{selecionados.size > 1 ? "s" : ""}{" "}
+            selecionada{selecionados.size > 1 ? "s" : ""}
+          </span>
+          <span className="text-neutral-500">
+            Arraste uma delas para mover todas juntas.
+          </span>
+          <button
+            type="button"
+            onClick={() => setSelecionados(new Set())}
+            className="ml-auto rounded border border-border bg-white px-2 py-1 text-xs hover:bg-muted"
+          >
+            Cancelar seleção
+          </button>
         </div>
-      </SortableContext>
+      )}
 
-      <DragOverlay>
-        {ativo ? (
-          <div className="relative rounded-lg overflow-hidden border border-neutral-300 bg-white shadow-xl">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={ativo.url}
-              alt={ativo.nome}
-              className="aspect-square w-full object-cover"
-              draggable={false}
-            />
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+        onDragCancel={handleDragCancel}
+      >
+        <SortableContext
+          items={itens.map((i) => i.id)}
+          strategy={rectSortingStrategy}
+        >
+          <div className={grid}>
+            {itens.map((item, i) => (
+              <Card
+                key={item.id}
+                item={item}
+                posicao={i + 1}
+                onRemover={onRemover}
+                arrastavel={arrastavel}
+                selecionado={selecionados.has(item.id)}
+                onAlternarSelecao={arrastavel ? alternarSelecao : undefined}
+                onAmpliar={aoClicarFoto}
+              />
+            ))}
           </div>
-        ) : null}
-      </DragOverlay>
-    </DndContext>
+        </SortableContext>
+
+        <DragOverlay>
+          {ativo ? (
+            <div className="relative rounded-lg overflow-hidden border border-neutral-300 bg-white shadow-xl">
+              {grupoArrasto.length > 1 && (
+                <span className="absolute -right-2 -top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-rosa text-xs font-bold text-white shadow">
+                  {grupoArrasto.length}
+                </span>
+              )}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={ativo.url}
+                alt={ativo.nome}
+                className="aspect-square w-full object-cover"
+                draggable={false}
+              />
+            </div>
+          ) : null}
+        </DragOverlay>
+      </DndContext>
+
+      {ampliada && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+          onClick={() => setAmpliada(null)}
+        >
+          <button
+            type="button"
+            onClick={() => setAmpliada(null)}
+            aria-label="Fechar"
+            className="absolute right-4 top-4 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-xl text-white hover:bg-white/20"
+          >
+            ✕
+          </button>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={urlOriginal(ampliada.url)}
+            alt={ampliada.nome}
+            onClick={(e) => e.stopPropagation()}
+            onError={(e) => {
+              const img = e.currentTarget;
+              if (img.src !== ampliada.url) img.src = ampliada.url;
+            }}
+            className="max-h-[90vh] max-w-full rounded object-contain shadow-2xl"
+          />
+        </div>
+      )}
+    </div>
   );
 }

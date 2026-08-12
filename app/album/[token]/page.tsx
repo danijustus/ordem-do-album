@@ -198,7 +198,9 @@ export default function PaginaCliente({
       {!aprovado && (
         <div className="mb-6 rounded border border-border bg-muted/60 px-4 py-3 text-sm leading-relaxed text-neutral-600">
           <strong className="font-medium text-foreground">Como funciona:</strong>{" "}
-          arraste as fotos para a ordem que quiser. Você pode salvar e voltar
+          arraste as fotos para a ordem que quiser. Toque no círculo no canto
+          de cada foto para selecionar várias e arrastar todas juntas de uma
+          vez. Clique em qualquer foto para ampliar. Você pode salvar e voltar
           quando quiser — nada se perde. Quando estiver do seu jeito, clique em{" "}
           <strong className="font-medium text-foreground">
             Aprovar ordem final
