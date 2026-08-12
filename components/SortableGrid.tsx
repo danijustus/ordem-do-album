@@ -220,12 +220,19 @@ export default function SortableGrid({
     setAncoraSelecao(id);
   }
 
-  // Clique no corpo do card só faz algo com Shift (seleção). Ampliar é só
-  // pelo ícone dedicado, para não competir com o arraste.
+  // Clique no corpo do card: com Shift, seleciona. Sem Shift, se havia
+  // seleção ativa, cancela ela (clicar em qualquer foto "sai" do modo de
+  // seleção). Ampliar é só pelo ícone dedicado, para não competir com o
+  // arraste.
   function aoClicarFoto(item: Item, e: React.MouseEvent) {
     if (houveArrastoRef.current) return;
     if (arrastavel && e.shiftKey) {
       selecionarComShift(item.id);
+      return;
+    }
+    if (selecionados.size > 0) {
+      setSelecionados(new Set());
+      setAncoraSelecao(null);
     }
   }
 
@@ -289,13 +296,14 @@ export default function SortableGrid({
   return (
     <div>
       {arrastavel && selecionados.size > 0 && (
-        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-rosa/40 bg-rosa/10 px-3 py-2 text-sm">
+        <div className="sticky top-2 z-20 mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-rosa/40 bg-white px-3 py-2 text-sm shadow-md">
           <span className="font-medium text-rosa-escuro">
             {selecionados.size} foto{selecionados.size > 1 ? "s" : ""}{" "}
             selecionada{selecionados.size > 1 ? "s" : ""}
           </span>
           <span className="text-neutral-500">
-            Arraste uma delas para mover todas juntas.
+            Arraste uma delas para mover todas juntas, ou clique em qualquer
+            foto para cancelar.
           </span>
           <button
             type="button"
