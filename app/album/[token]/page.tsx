@@ -200,10 +200,10 @@ export default function PaginaCliente({
           <strong className="font-medium text-foreground">Como funciona:</strong>{" "}
           arraste as fotos para a ordem que quiser. Clique no ícone de
           expandir no canto da foto para ampliar. Para mover várias de uma
-          vez, segure Shift e clique nas fotos (Shift+clique na última
-          seleciona o intervalo até a primeira) e arraste uma delas. Você
-          pode salvar e voltar quando quiser — nada se perde. Quando estiver
-          do seu jeito, clique em{" "}
+          vez, segure Shift e clique em cada foto que quiser (pode pular as
+          que não quiser) e depois arraste uma delas. Você pode salvar e
+          voltar quando quiser — nada se perde. Quando estiver do seu jeito,
+          clique em{" "}
           <strong className="font-medium text-foreground">
             Aprovar ordem final
           </strong>{" "}

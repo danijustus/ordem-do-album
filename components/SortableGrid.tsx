@@ -160,7 +160,6 @@ export default function SortableGrid({
   const [ativo, setAtivo] = useState<Item | null>(null);
   const [grupoArrasto, setGrupoArrasto] = useState<Item[]>([]);
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
-  const [ancoraSelecao, setAncoraSelecao] = useState<string | null>(null);
   const [ampliada, setAmpliada] = useState<Item | null>(null);
   // Sinaliza se o gesto atual foi um arraste, para o clique que o navegador
   // dispara logo em seguida não abrir a foto ampliada sem querer.
@@ -193,46 +192,29 @@ export default function SortableGrid({
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
-  // Shift+clique seleciona um intervalo (da última âncora até a foto
-  // clicada), como no Explorer/Finder. Clicar de novo na única selecionada
-  // desmarca.
-  function selecionarComShift(id: string) {
-    if (ancoraSelecao === id && selecionados.size === 1) {
-      setSelecionados(new Set());
-      setAncoraSelecao(null);
-      return;
-    }
-    if (ancoraSelecao == null) {
-      setSelecionados(new Set([id]));
-      setAncoraSelecao(id);
-      return;
-    }
-    const idxAncora = itens.findIndex((i) => i.id === ancoraSelecao);
-    const idxAtual = itens.findIndex((i) => i.id === id);
-    if (idxAncora < 0 || idxAtual < 0) {
-      setSelecionados(new Set([id]));
-      setAncoraSelecao(id);
-      return;
-    }
-    const [ini, fim] =
-      idxAncora <= idxAtual ? [idxAncora, idxAtual] : [idxAtual, idxAncora];
-    setSelecionados(new Set(itens.slice(ini, fim + 1).map((i) => i.id)));
-    setAncoraSelecao(id);
+  // Shift+clique marca/desmarca a foto clicada, uma a uma — dá para pular
+  // as que não quiser, em qualquer ordem.
+  function alternarSelecao(id: string) {
+    setSelecionados((prev) => {
+      const novo = new Set(prev);
+      if (novo.has(id)) novo.delete(id);
+      else novo.add(id);
+      return novo;
+    });
   }
 
-  // Clique no corpo do card: com Shift, seleciona. Sem Shift, se havia
+  // Clique no corpo do card: com Shift, marca/desmarca. Sem Shift, se havia
   // seleção ativa, cancela ela (clicar em qualquer foto "sai" do modo de
   // seleção). Ampliar é só pelo ícone dedicado, para não competir com o
   // arraste.
   function aoClicarFoto(item: Item, e: React.MouseEvent) {
     if (houveArrastoRef.current) return;
     if (arrastavel && e.shiftKey) {
-      selecionarComShift(item.id);
+      alternarSelecao(item.id);
       return;
     }
     if (selecionados.size > 0) {
       setSelecionados(new Set());
-      setAncoraSelecao(null);
     }
   }
 
@@ -280,7 +262,6 @@ export default function SortableGrid({
       ...resto.slice(indiceAlvo),
     ]);
     setSelecionados(new Set());
-    setAncoraSelecao(null);
   }
 
   function handleDragCancel() {
@@ -307,10 +288,7 @@ export default function SortableGrid({
           </span>
           <button
             type="button"
-            onClick={() => {
-              setSelecionados(new Set());
-              setAncoraSelecao(null);
-            }}
+            onClick={() => setSelecionados(new Set())}
             className="ml-auto rounded border border-border bg-white px-2 py-1 text-xs hover:bg-muted"
           >
             Cancelar seleção
