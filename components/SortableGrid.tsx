@@ -35,6 +35,26 @@ function urlOriginal(urlThumb: string): string {
     : urlThumb;
 }
 
+// Ícone de "expandir para tela cheia" (cantos apontando para fora).
+function IconeAmpliar() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-4 w-4"
+    >
+      <path d="M8 3H5a2 2 0 0 0-2 2v3" />
+      <path d="M21 8V5a2 2 0 0 0-2-2h-3" />
+      <path d="M3 16v3a2 2 0 0 0 2 2h3" />
+      <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
+    </svg>
+  );
+}
+
 function Card({
   item,
   posicao,
@@ -42,6 +62,7 @@ function Card({
   arrastavel,
   selecionado,
   onClicar,
+  onAmpliar,
 }: {
   item: Item;
   posicao: number;
@@ -49,6 +70,7 @@ function Card({
   arrastavel: boolean;
   selecionado: boolean;
   onClicar: (item: Item, e: React.MouseEvent) => void;
+  onAmpliar: (item: Item) => void;
 }) {
   const {
     attributes,
@@ -93,6 +115,19 @@ function Card({
           ✕
         </button>
       )}
+      <button
+        type="button"
+        // Evita que o clique de ampliar inicie um arraste.
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
+          onAmpliar(item);
+        }}
+        aria-label="Ampliar foto"
+        className="absolute bottom-1 right-1 z-10 flex h-6 w-6 items-center justify-center rounded-md bg-black/50 text-white hover:bg-black/70"
+      >
+        <IconeAmpliar />
+      </button>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={item.url}
@@ -160,7 +195,7 @@ export default function SortableGrid({
 
   // Shift+clique seleciona um intervalo (da última âncora até a foto
   // clicada), como no Explorer/Finder. Clicar de novo na única selecionada
-  // desmarca. Sem Shift, o clique apenas amplia a foto.
+  // desmarca.
   function selecionarComShift(id: string) {
     if (ancoraSelecao === id && selecionados.size === 1) {
       setSelecionados(new Set());
@@ -185,13 +220,13 @@ export default function SortableGrid({
     setAncoraSelecao(id);
   }
 
+  // Clique no corpo do card só faz algo com Shift (seleção). Ampliar é só
+  // pelo ícone dedicado, para não competir com o arraste.
   function aoClicarFoto(item: Item, e: React.MouseEvent) {
     if (houveArrastoRef.current) return;
     if (arrastavel && e.shiftKey) {
       selecionarComShift(item.id);
-      return;
     }
-    setAmpliada(item);
   }
 
   function handleDragStart(event: DragStartEvent) {
@@ -296,6 +331,7 @@ export default function SortableGrid({
                 arrastavel={arrastavel}
                 selecionado={selecionados.has(item.id)}
                 onClicar={aoClicarFoto}
+                onAmpliar={setAmpliada}
               />
             ))}
           </div>
